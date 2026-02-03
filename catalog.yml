@@ -1,10 +1,14 @@
 # mdBook Catalog
-# Add books here or use the admin page
+# Managed by mdBook Builder Admin
 
 books:
-  # Example entry (uncomment and modify):
   - name: "The Rust Programming Language"
     slug: "rust-book"
     repo: "https://github.com/rust-lang/book"
+    branch: "main"
+    path: "."
+  - name: "The Art of Debugging"
+    slug: "the-art-of-debugging"
+    repo: "https://github.com/stas00/the-art-of-debugging"
     branch: "main"
     path: "."
