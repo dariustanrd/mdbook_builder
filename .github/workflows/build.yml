@@ -24,6 +24,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
       - name: Install mdBook
         run: |
           mkdir -p $HOME/.local/bin
@@ -42,6 +55,7 @@ jobs:
           sudo chmod +x /usr/local/bin/yq
 
       - name: Build catalog books
+        timeout-minutes: 30
         run: |
           # Check if catalog has any books
           BOOK_COUNT=$(yq '.books | length' catalog.yml)
@@ -84,6 +98,32 @@ jobs:
                 # Standard mdBook - requires book.toml
                 cd "$CONTENT_DIR"
                 if [ -f "book.toml" ]; then
+                  # Check if book.toml has custom preprocessors that need to be built with Cargo
+                  # Look for preprocessor commands that use "cargo run"
+                  if grep -q "cargo run" book.toml 2>/dev/null; then
+                    echo "Detected custom preprocessors requiring Cargo build..."
+                    
+                    # Build all Cargo packages in the repo that might be preprocessors
+                    if [ -f "Cargo.toml" ]; then
+                      echo "Building Cargo workspace/packages..."
+                      cargo build --release 2>&1 || {
+                        echo "::warning::Failed to build Cargo packages for $NAME, trying without preprocessors"
+                      }
+                    fi
+                    
+                    # Check for packages directory (common pattern for mdbook preprocessors)
+                    if [ -d "packages" ]; then
+                      echo "Building packages directory..."
+                      for pkg_toml in packages/*/Cargo.toml; do
+                        if [ -f "$pkg_toml" ]; then
+                          pkg_dir=$(dirname "$pkg_toml")
+                          echo "Building package: $pkg_dir"
+                          cargo build --release --manifest-path "$pkg_toml" 2>&1 || true
+                        fi
+                      done
+                    fi
+                  fi
+                  
                   mdbook build || {
                     echo "::warning::Failed to build $NAME"
                     cd - > /dev/null
