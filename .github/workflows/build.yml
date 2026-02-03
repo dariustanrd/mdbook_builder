@@ -162,7 +162,7 @@ jobs:
           preferred-dark-theme = "navy"
           EOF
                 
-                # Find all markdown files and generate SUMMARY.md
+                # Start SUMMARY.md
                 echo "# Summary" > "$TEMP_BOOK/src/SUMMARY.md"
                 echo "" >> "$TEMP_BOOK/src/SUMMARY.md"
                 
@@ -177,47 +177,162 @@ jobs:
                 
                 if [ -n "$ENTRY_FILE" ]; then
                   cp "$CONTENT_DIR/$ENTRY_FILE" "$TEMP_BOOK/src/index.md"
-                  echo "- [Introduction](./index.md)" >> "$TEMP_BOOK/src/SUMMARY.md"
+                  echo "[Introduction](./index.md)" >> "$TEMP_BOOK/src/SUMMARY.md"
+                  echo "" >> "$TEMP_BOOK/src/SUMMARY.md"
                 else
-                  # Create a simple index if no README found
                   echo "# $NAME" > "$TEMP_BOOK/src/index.md"
                   echo "" >> "$TEMP_BOOK/src/index.md"
                   echo "Welcome to $NAME" >> "$TEMP_BOOK/src/index.md"
-                  echo "- [Introduction](./index.md)" >> "$TEMP_BOOK/src/SUMMARY.md"
+                  echo "[Introduction](./index.md)" >> "$TEMP_BOOK/src/SUMMARY.md"
+                  echo "" >> "$TEMP_BOOK/src/SUMMARY.md"
                 fi
                 
-                # Copy all markdown files (excluding the entry file we already copied)
-                find "$CONTENT_DIR" -name "*.md" -type f | sort | while read -r md_file; do
+                # Helper function to get title from markdown file
+                get_title() {
+                  local file="$1"
+                  local fallback="$2"
+                  local title=$(head -10 "$file" 2>/dev/null | grep -m1 "^#" | sed 's/^#* *//')
+                  if [ -z "$title" ]; then
+                    echo "$fallback"
+                  else
+                    echo "$title"
+                  fi
+                }
+                
+                # Copy all files first
+                find "$CONTENT_DIR" -name "*.md" -type f | while read -r md_file; do
                   rel_path="${md_file#$CONTENT_DIR/}"
                   base_name=$(basename "$md_file")
                   
-                  # Skip the entry file and hidden files
-                  if [ "$base_name" = "$ENTRY_FILE" ] || [[ "$rel_path" == .* ]]; then
+                  # Skip root entry file and hidden files
+                  if [ "$rel_path" = "$ENTRY_FILE" ] || [[ "$rel_path" == .* ]] || [[ "$rel_path" == */.* ]]; then
                     continue
                   fi
                   
-                  # Create directory structure in src
                   dir_path=$(dirname "$rel_path")
                   if [ "$dir_path" != "." ]; then
                     mkdir -p "$TEMP_BOOK/src/$dir_path"
                   fi
-                  
                   cp "$md_file" "$TEMP_BOOK/src/$rel_path"
+                done
+                
+                # Add root-level markdown files (excluding entry file)
+                for md_file in "$CONTENT_DIR"/*.md; do
+                  [ -f "$md_file" ] || continue
+                  base_name=$(basename "$md_file")
                   
-                  # Extract title from first heading or use filename
-                  title=$(head -5 "$md_file" | grep -m1 "^#" | sed 's/^#* *//' || echo "$base_name")
+                  # Skip entry file
+                  if [ "$base_name" = "$ENTRY_FILE" ]; then
+                    continue
+                  fi
+                  
+                  title=$(head -10 "$md_file" 2>/dev/null | grep -m1 "^#" | sed 's/^#* *//')
                   if [ -z "$title" ]; then
                     title="${base_name%.md}"
                   fi
-                  
-                  # Add to SUMMARY.md with proper indentation based on depth
-                  depth=$(echo "$rel_path" | tr -cd '/' | wc -c)
-                  indent=""
-                  for j in $(seq 1 $depth); do
-                    indent="  $indent"
-                  done
-                  echo "${indent}- [$title](./$rel_path)" >> "$TEMP_BOOK/src/SUMMARY.md"
+                  echo "- [$title](./$base_name)" >> "$TEMP_BOOK/src/SUMMARY.md"
                 done
+                
+                echo "" >> "$TEMP_BOOK/src/SUMMARY.md"
+                
+                # Process each directory as a chapter
+                for dir in "$CONTENT_DIR"/*/; do
+                  [ -d "$dir" ] || continue
+                  dir_name=$(basename "$dir")
+                  
+                  # Skip hidden directories and common non-content dirs
+                  [[ "$dir_name" == .* ]] && continue
+                  [[ "$dir_name" == "node_modules" ]] && continue
+                  [[ "$dir_name" == "__pycache__" ]] && continue
+                  
+                  # Check if directory has any markdown files
+                  md_count=$(find "$dir" -name "*.md" -type f 2>/dev/null | wc -l)
+                  [ "$md_count" -eq 0 ] && continue
+                  
+                  # Create chapter title from directory name
+                  chapter_title=$(echo "$dir_name" | sed 's/-/ /g' | sed 's/_/ /g' | sed 's/\b\(.\)/\u\1/g')
+                  
+                  # Check for README or index in the directory
+                  chapter_index=""
+                  for entry in "README.md" "readme.md" "index.md" "INDEX.md"; do
+                    if [ -f "$dir/$entry" ]; then
+                      chapter_index="$entry"
+                      # Get title from the README
+                      chapter_title=$(head -10 "$dir/$entry" 2>/dev/null | grep -m1 "^#" | sed 's/^#* *//')
+                      [ -z "$chapter_title" ] && chapter_title=$(echo "$dir_name" | sed 's/-/ /g' | sed 's/_/ /g' | sed 's/\b\(.\)/\u\1/g')
+                      break
+                    fi
+                  done
+                  
+                  # Add chapter header
+                  if [ -n "$chapter_index" ]; then
+                    echo "- [$chapter_title](./$dir_name/$chapter_index)" >> "$TEMP_BOOK/src/SUMMARY.md"
+                  else
+                    # No index file, use first markdown file or create a placeholder
+                    first_md=$(find "$dir" -maxdepth 1 -name "*.md" -type f | sort | head -1)
+                    if [ -n "$first_md" ]; then
+                      first_md_name=$(basename "$first_md")
+                      echo "- [$chapter_title](./$dir_name/$first_md_name)" >> "$TEMP_BOOK/src/SUMMARY.md"
+                    else
+                      echo "- [$chapter_title]()" >> "$TEMP_BOOK/src/SUMMARY.md"
+                    fi
+                  fi
+                  
+                  # Add files in the directory (excluding README/index)
+                  find "$dir" -maxdepth 1 -name "*.md" -type f | sort | while read -r md_file; do
+                    base_name=$(basename "$md_file")
+                    
+                    # Skip index files (already used as chapter header)
+                    [[ "$base_name" =~ ^(README|readme|index|INDEX)\.md$ ]] && continue
+                    
+                    title=$(head -10 "$md_file" 2>/dev/null | grep -m1 "^#" | sed 's/^#* *//')
+                    if [ -z "$title" ]; then
+                      title="${base_name%.md}"
+                    fi
+                    echo "  - [$title](./$dir_name/$base_name)" >> "$TEMP_BOOK/src/SUMMARY.md"
+                  done
+                  
+                  # Handle subdirectories (one level deep)
+                  for subdir in "$dir"/*/; do
+                    [ -d "$subdir" ] || continue
+                    subdir_name=$(basename "$subdir")
+                    [[ "$subdir_name" == .* ]] && continue
+                    
+                    sub_md_count=$(find "$subdir" -maxdepth 1 -name "*.md" -type f 2>/dev/null | wc -l)
+                    [ "$sub_md_count" -eq 0 ] && continue
+                    
+                    subchapter_title=$(echo "$subdir_name" | sed 's/-/ /g' | sed 's/_/ /g' | sed 's/\b\(.\)/\u\1/g')
+                    
+                    # Check for index
+                    sub_index=""
+                    for entry in "README.md" "readme.md" "index.md"; do
+                      if [ -f "$subdir/$entry" ]; then
+                        sub_index="$entry"
+                        subchapter_title=$(head -10 "$subdir/$entry" 2>/dev/null | grep -m1 "^#" | sed 's/^#* *//')
+                        [ -z "$subchapter_title" ] && subchapter_title=$(echo "$subdir_name" | sed 's/-/ /g')
+                        break
+                      fi
+                    done
+                    
+                    if [ -n "$sub_index" ]; then
+                      echo "  - [$subchapter_title](./$dir_name/$subdir_name/$sub_index)" >> "$TEMP_BOOK/src/SUMMARY.md"
+                    fi
+                    
+                    find "$subdir" -maxdepth 1 -name "*.md" -type f | sort | while read -r md_file; do
+                      base_name=$(basename "$md_file")
+                      [[ "$base_name" =~ ^(README|readme|index|INDEX)\.md$ ]] && continue
+                      
+                      title=$(head -10 "$md_file" 2>/dev/null | grep -m1 "^#" | sed 's/^#* *//')
+                      [ -z "$title" ] && title="${base_name%.md}"
+                      echo "    - [$title](./$dir_name/$subdir_name/$base_name)" >> "$TEMP_BOOK/src/SUMMARY.md"
+                    done
+                  done
+                  
+                  echo "" >> "$TEMP_BOOK/src/SUMMARY.md"
+                done
+                
+                echo "Generated SUMMARY.md:"
+                cat "$TEMP_BOOK/src/SUMMARY.md"
                 
                 # Copy any images and other assets
                 for ext in png jpg jpeg gif svg webp; do
