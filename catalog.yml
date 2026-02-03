@@ -1,15 +1,16 @@
 # mdBook Catalog
 # Managed by mdBook Builder Admin
-#
-# Supported types:
-#   - mdbook (default): Repository contains book.toml, built with mdbook
-#   - markdown: Plain markdown files, auto-wrapped in mdBook
-#   - html: Static HTML site, copied directly
 
 books:
   - name: "The Rust Programming Language"
     slug: "rust-book"
     repo: "https://github.com/rust-lang/book"
+    type: "mdbook"
     branch: "main"
     path: "."
-    type: "mdbook"
+  - name: "The Art of Debugging"
+    slug: "the-art-of-debugging"
+    repo: "https://github.com/stas00/the-art-of-debugging"
+    type: "markdown"
+    branch: "master"
+    path: "."
