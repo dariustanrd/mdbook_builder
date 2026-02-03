@@ -1,5 +1,6 @@
 # mdBook Catalog
 # Managed by mdBook Builder Admin
+# Supported types: mdbook, markdown, html
 
 books:
   - name: "The Rust Programming Language"
@@ -11,6 +12,12 @@ books:
   - name: "The Art of Debugging"
     slug: "the-art-of-debugging"
     repo: "https://github.com/stas00/the-art-of-debugging"
+    type: "markdown"
+    branch: "master"
+    path: "."
+  - name: "ML Engineering Open Book"
+    slug: "ml-engineering-open-book"
+    repo: "https://github.com/stas00/ml-engineering"
     type: "markdown"
     branch: "master"
     path: "."
