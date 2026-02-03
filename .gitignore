@@ -1,0 +1,15 @@
+# mdBook build output
+book/
+
+# Temporary directories
+temp_repos/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.idea/
+.vscode/
+*.swp
+*.swo

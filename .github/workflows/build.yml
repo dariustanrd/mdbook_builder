@@ -1,0 +1,127 @@
+name: Build and Deploy mdBooks
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Rebuild daily at 6 AM UTC to pick up upstream changes
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install mdBook
+        run: |
+          mkdir -p $HOME/.local/bin
+          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.36/mdbook-v0.4.36-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C $HOME/.local/bin
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Build wrapper mdBook
+        run: mdbook build
+
+      - name: Create books directory
+        run: mkdir -p book/books
+
+      - name: Install yq for YAML parsing
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Build catalog books
+        run: |
+          # Check if catalog has any books
+          BOOK_COUNT=$(yq '.books | length' catalog.yml)
+          echo "Found $BOOK_COUNT books in catalog"
+          
+          if [ "$BOOK_COUNT" -eq 0 ] || [ "$BOOK_COUNT" = "null" ]; then
+            echo "No books in catalog, skipping book builds"
+            exit 0
+          fi
+          
+          # Process each book
+          for i in $(seq 0 $(($BOOK_COUNT - 1))); do
+            NAME=$(yq ".books[$i].name" catalog.yml)
+            SLUG=$(yq ".books[$i].slug" catalog.yml)
+            REPO=$(yq ".books[$i].repo" catalog.yml)
+            BRANCH=$(yq ".books[$i].branch // \"main\"" catalog.yml)
+            BOOK_PATH=$(yq ".books[$i].path // \".\"" catalog.yml)
+            
+            echo "=========================================="
+            echo "Building: $NAME"
+            echo "  Slug: $SLUG"
+            echo "  Repo: $REPO"
+            echo "  Branch: $BRANCH"
+            echo "  Path: $BOOK_PATH"
+            echo "=========================================="
+            
+            # Clone the repository
+            CLONE_DIR="temp_repos/$SLUG"
+            git clone --depth 1 --branch "$BRANCH" "$REPO" "$CLONE_DIR" || {
+              echo "::warning::Failed to clone $REPO"
+              continue
+            }
+            
+            # Build the mdBook
+            cd "$CLONE_DIR/$BOOK_PATH"
+            if [ -f "book.toml" ]; then
+              mdbook build || {
+                echo "::warning::Failed to build $NAME"
+                cd - > /dev/null
+                continue
+              }
+              
+              # Copy built book to output
+              cd - > /dev/null
+              cp -r "$CLONE_DIR/$BOOK_PATH/book" "book/books/$SLUG"
+              echo "Successfully built: $NAME"
+            else
+              echo "::warning::No book.toml found for $NAME at $BOOK_PATH"
+              cd - > /dev/null
+            fi
+          done
+
+      - name: Generate catalog.json
+        run: |
+          # Convert catalog.yml to JSON for the landing page
+          yq -o=json '.' catalog.yml > book/catalog.json
+          echo "Generated catalog.json:"
+          cat book/catalog.json
+
+      - name: Copy static assets
+        run: |
+          # Copy JS and CSS to output
+          cp -r js book/ 2>/dev/null || true
+          cp -r css book/ 2>/dev/null || true
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: book
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

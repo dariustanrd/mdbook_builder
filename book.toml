@@ -1,0 +1,19 @@
+[book]
+title = "mdBook Library"
+authors = ["mdBook Builder"]
+description = "A collection of mdBooks from various repositories"
+language = "en"
+
+[build]
+build-dir = "book"
+
+[output.html]
+default-theme = "rust"
+preferred-dark-theme = "ayu"
+git-repository-url = ""
+additional-js = ["js/admin.js"]
+additional-css = ["css/custom.css"]
+no-section-label = true
+
+[output.html.fold]
+enable = false

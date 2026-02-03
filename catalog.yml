@@ -1,0 +1,10 @@
+# mdBook Catalog
+# Add books here or use the admin page
+
+books:
+  # Example entry (uncomment and modify):
+  - name: "The Rust Programming Language"
+    slug: "rust-book"
+    repo: "https://github.com/rust-lang/book"
+    branch: "main"
+    path: "."
