@@ -37,11 +37,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Install mdBook
+      - name: Install mdBook (latest)
         run: |
           mkdir -p $HOME/.local/bin
-          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.36/mdbook-v0.4.36-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C $HOME/.local/bin
+          # Fetch latest release version from GitHub API
+          MDBOOK_VERSION=$(curl -s https://api.github.com/repos/rust-lang/mdBook/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "Installing mdBook $MDBOOK_VERSION"
+          curl -sSL "https://github.com/rust-lang/mdBook/releases/download/${MDBOOK_VERSION}/mdbook-${MDBOOK_VERSION}-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C $HOME/.local/bin
           echo "$HOME/.local/bin" >> $GITHUB_PATH
+          mdbook --version
 
       - name: Build wrapper mdBook
         run: mdbook build
