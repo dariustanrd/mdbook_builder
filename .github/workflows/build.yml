@@ -264,33 +264,40 @@ jobs:
                     fi
                   done
                   
-                  # Add chapter header
-                  if [ -n "$chapter_index" ]; then
-                    echo "- [$chapter_title](./$dir_name/$chapter_index)" >> "$TEMP_BOOK/src/SUMMARY.md"
+                # Add chapter header
+                # Track which file is used as chapter header to avoid duplicates
+                chapter_header_file=""
+                if [ -n "$chapter_index" ]; then
+                  echo "- [$chapter_title](./$dir_name/$chapter_index)" >> "$TEMP_BOOK/src/SUMMARY.md"
+                  chapter_header_file="$chapter_index"
+                else
+                  # No index file, use first markdown file or create a placeholder
+                  first_md=$(find "$dir" -maxdepth 1 -name "*.md" -type f | sort | head -1)
+                  if [ -n "$first_md" ]; then
+                    first_md_name=$(basename "$first_md")
+                    echo "- [$chapter_title](./$dir_name/$first_md_name)" >> "$TEMP_BOOK/src/SUMMARY.md"
+                    chapter_header_file="$first_md_name"
                   else
-                    # No index file, use first markdown file or create a placeholder
-                    first_md=$(find "$dir" -maxdepth 1 -name "*.md" -type f | sort | head -1)
-                    if [ -n "$first_md" ]; then
-                      first_md_name=$(basename "$first_md")
-                      echo "- [$chapter_title](./$dir_name/$first_md_name)" >> "$TEMP_BOOK/src/SUMMARY.md"
-                    else
-                      echo "- [$chapter_title]()" >> "$TEMP_BOOK/src/SUMMARY.md"
-                    fi
+                    echo "- [$chapter_title]()" >> "$TEMP_BOOK/src/SUMMARY.md"
                   fi
+                fi
+                
+                # Add files in the directory (excluding README/index and the file used as chapter header)
+                find "$dir" -maxdepth 1 -name "*.md" -type f | sort | while read -r md_file; do
+                  base_name=$(basename "$md_file")
                   
-                  # Add files in the directory (excluding README/index)
-                  find "$dir" -maxdepth 1 -name "*.md" -type f | sort | while read -r md_file; do
-                    base_name=$(basename "$md_file")
-                    
-                    # Skip index files (already used as chapter header)
-                    [[ "$base_name" =~ ^(README|readme|index|INDEX)\.md$ ]] && continue
-                    
-                    title=$(head -10 "$md_file" 2>/dev/null | grep -m1 "^#" | sed 's/^#* *//')
-                    if [ -z "$title" ]; then
-                      title="${base_name%.md}"
-                    fi
-                    echo "  - [$title](./$dir_name/$base_name)" >> "$TEMP_BOOK/src/SUMMARY.md"
-                  done
+                  # Skip index files (already used as chapter header)
+                  [[ "$base_name" =~ ^(README|readme|index|INDEX)\.md$ ]] && continue
+                  
+                  # Skip the file used as chapter header (when no index file existed)
+                  [ "$base_name" = "$chapter_header_file" ] && continue
+                  
+                  title=$(head -10 "$md_file" 2>/dev/null | grep -m1 "^#" | sed 's/^#* *//')
+                  if [ -z "$title" ]; then
+                    title="${base_name%.md}"
+                  fi
+                  echo "  - [$title](./$dir_name/$base_name)" >> "$TEMP_BOOK/src/SUMMARY.md"
+                done
                   
                   # Handle subdirectories (one level deep)
                   for subdir in "$dir"/*/; do
