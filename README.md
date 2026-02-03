@@ -103,11 +103,53 @@ books:
   - name: "My Book Title"
     slug: "my-book"
     repo: "https://github.com/owner/repo"
+    type: "mdbook"           # optional: mdbook, markdown, or html
     branch: "main"           # optional, defaults to main
-    path: "."                # optional, path to book.toml
+    path: "."                # optional, path to content root
 ```
 
 Push the change. The Action rebuilds and deploys automatically.
+
+## Content Types
+
+The builder supports three types of content repositories:
+
+### 1. mdBook (default)
+Standard mdBook repositories with a `book.toml` file. The book is built using `mdbook build`.
+
+```yaml
+- name: "Rust Book"
+  slug: "rust-book"
+  repo: "https://github.com/rust-lang/book"
+  type: "mdbook"  # or omit - mdbook is the default
+  path: "."       # path to book.toml
+```
+
+### 2. Markdown
+Plain markdown repositories without mdBook structure. The builder automatically:
+- Creates a `book.toml` and `SUMMARY.md`
+- Uses `README.md` (or `index.md`) as the introduction
+- Includes all `.md` files found in the repository
+- Copies images and assets (png, jpg, gif, svg, webp)
+
+```yaml
+- name: "My Documentation"
+  slug: "my-docs"
+  repo: "https://github.com/owner/markdown-repo"
+  type: "markdown"
+  path: "docs"    # path to markdown files (optional)
+```
+
+### 3. HTML
+Static HTML sites are copied directly without any processing. Useful for pre-built documentation or custom sites.
+
+```yaml
+- name: "API Docs"
+  slug: "api-docs"
+  repo: "https://github.com/owner/html-docs"
+  type: "html"
+  path: "site"    # path to HTML files
+```
 
 ## Triggering Builds
 
@@ -120,7 +162,9 @@ Builds run:
 
 - GitHub repo with Pages enabled
 - Repos in catalog must be public (or use a PAT for private repos)
-- Each repo needs a valid `book.toml`
+- For `mdbook` type: repository needs a valid `book.toml`
+- For `markdown` type: repository should contain `.md` files
+- For `html` type: repository should contain an `index.html`
 
 ## Setup
 

@@ -33,6 +33,7 @@
       bookName: document.getElementById('book-name'),
       bookSlug: document.getElementById('book-slug'),
       bookRepo: document.getElementById('book-repo'),
+      bookType: document.getElementById('book-type'),
       bookBranch: document.getElementById('book-branch'),
       bookPath: document.getElementById('book-path'),
       addBookBtn: document.getElementById('add-book-btn'),
@@ -147,6 +148,7 @@
         <div class="book-info">
           <strong>${escapeHtml(book.name)}</strong>
           <span class="book-slug">/${book.slug}/</span>
+          <span class="book-type">[${book.type || 'mdbook'}]</span>
           <div class="book-meta">${escapeHtml(book.repo)}</div>
         </div>
         <button class="btn btn-danger btn-small" data-index="${index}">Remove</button>
@@ -168,6 +170,7 @@
     const name = elements.bookName.value.trim();
     const slug = elements.bookSlug.value.trim();
     const repo = elements.bookRepo.value.trim();
+    const type = elements.bookType.value || 'mdbook';
     const branch = elements.bookBranch.value.trim() || 'main';
     const path = elements.bookPath.value.trim() || '.';
 
@@ -188,7 +191,7 @@
       return;
     }
 
-    const newBook = { name, slug, repo, branch, path };
+    const newBook = { name, slug, repo, type, branch, path };
     currentCatalog.books.push(newBook);
 
     showStatus(elements.addStatus, 'Saving catalog...', 'info');
@@ -263,6 +266,7 @@
     elements.bookName.value = '';
     elements.bookSlug.value = '';
     elements.bookRepo.value = '';
+    elements.bookType.value = 'mdbook';
     elements.bookBranch.value = 'main';
     elements.bookPath.value = '.';
   }
@@ -304,6 +308,8 @@
           currentBook.slug = extractValue(trimmed.substring(5));
         } else if (trimmed.startsWith('repo:')) {
           currentBook.repo = extractValue(trimmed.substring(5));
+        } else if (trimmed.startsWith('type:')) {
+          currentBook.type = extractValue(trimmed.substring(5));
         } else if (trimmed.startsWith('branch:')) {
           currentBook.branch = extractValue(trimmed.substring(7));
         } else if (trimmed.startsWith('path:')) {
@@ -332,6 +338,7 @@
       output += `  - name: "${book.name}"\n`;
       output += `    slug: "${book.slug}"\n`;
       output += `    repo: "${book.repo}"\n`;
+      output += `    type: "${book.type || 'mdbook'}"\n`;
       output += `    branch: "${book.branch || 'main'}"\n`;
       output += `    path: "${book.path || '.'}"\n`;
     }

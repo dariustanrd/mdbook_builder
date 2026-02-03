@@ -59,6 +59,7 @@ jobs:
             REPO=$(yq ".books[$i].repo" catalog.yml)
             BRANCH=$(yq ".books[$i].branch // \"main\"" catalog.yml)
             BOOK_PATH=$(yq ".books[$i].path // \".\"" catalog.yml)
+            BOOK_TYPE=$(yq ".books[$i].type // \"mdbook\"" catalog.yml)
             
             echo "=========================================="
             echo "Building: $NAME"
@@ -66,6 +67,7 @@ jobs:
             echo "  Repo: $REPO"
             echo "  Branch: $BRANCH"
             echo "  Path: $BOOK_PATH"
+            echo "  Type: $BOOK_TYPE"
             echo "=========================================="
             
             # Clone the repository
@@ -75,23 +77,142 @@ jobs:
               continue
             }
             
-            # Build the mdBook
-            cd "$CLONE_DIR/$BOOK_PATH"
-            if [ -f "book.toml" ]; then
-              mdbook build || {
-                echo "::warning::Failed to build $NAME"
+            CONTENT_DIR="$CLONE_DIR/$BOOK_PATH"
+            
+            case "$BOOK_TYPE" in
+              "mdbook")
+                # Standard mdBook - requires book.toml
+                cd "$CONTENT_DIR"
+                if [ -f "book.toml" ]; then
+                  mdbook build || {
+                    echo "::warning::Failed to build $NAME"
+                    cd - > /dev/null
+                    continue
+                  }
+                  cd - > /dev/null
+                  cp -r "$CONTENT_DIR/book" "book/books/$SLUG"
+                  echo "Successfully built mdBook: $NAME"
+                else
+                  echo "::warning::No book.toml found for $NAME at $BOOK_PATH"
+                  cd - > /dev/null
+                fi
+                ;;
+                
+              "markdown")
+                # Plain markdown repository - auto-generate mdBook wrapper
+                echo "Generating mdBook wrapper for markdown content..."
+                
+                # Create a temporary mdBook structure
+                TEMP_BOOK="temp_mdbook_$SLUG"
+                mkdir -p "$TEMP_BOOK/src"
+                
+                # Generate book.toml
+                cat > "$TEMP_BOOK/book.toml" << EOF
+          [book]
+          title = "$NAME"
+          authors = []
+          language = "en"
+          
+          [output.html]
+          default-theme = "light"
+          preferred-dark-theme = "navy"
+          EOF
+                
+                # Find all markdown files and generate SUMMARY.md
+                echo "# Summary" > "$TEMP_BOOK/src/SUMMARY.md"
+                echo "" >> "$TEMP_BOOK/src/SUMMARY.md"
+                
+                # Check for common entry point files
+                ENTRY_FILE=""
+                for entry in "README.md" "readme.md" "index.md" "INDEX.md"; do
+                  if [ -f "$CONTENT_DIR/$entry" ]; then
+                    ENTRY_FILE="$entry"
+                    break
+                  fi
+                done
+                
+                if [ -n "$ENTRY_FILE" ]; then
+                  cp "$CONTENT_DIR/$ENTRY_FILE" "$TEMP_BOOK/src/index.md"
+                  echo "- [Introduction](./index.md)" >> "$TEMP_BOOK/src/SUMMARY.md"
+                else
+                  # Create a simple index if no README found
+                  echo "# $NAME" > "$TEMP_BOOK/src/index.md"
+                  echo "" >> "$TEMP_BOOK/src/index.md"
+                  echo "Welcome to $NAME" >> "$TEMP_BOOK/src/index.md"
+                  echo "- [Introduction](./index.md)" >> "$TEMP_BOOK/src/SUMMARY.md"
+                fi
+                
+                # Copy all markdown files (excluding the entry file we already copied)
+                find "$CONTENT_DIR" -name "*.md" -type f | sort | while read -r md_file; do
+                  rel_path="${md_file#$CONTENT_DIR/}"
+                  base_name=$(basename "$md_file")
+                  
+                  # Skip the entry file and hidden files
+                  if [ "$base_name" = "$ENTRY_FILE" ] || [[ "$rel_path" == .* ]]; then
+                    continue
+                  fi
+                  
+                  # Create directory structure in src
+                  dir_path=$(dirname "$rel_path")
+                  if [ "$dir_path" != "." ]; then
+                    mkdir -p "$TEMP_BOOK/src/$dir_path"
+                  fi
+                  
+                  cp "$md_file" "$TEMP_BOOK/src/$rel_path"
+                  
+                  # Extract title from first heading or use filename
+                  title=$(head -5 "$md_file" | grep -m1 "^#" | sed 's/^#* *//' || echo "$base_name")
+                  if [ -z "$title" ]; then
+                    title="${base_name%.md}"
+                  fi
+                  
+                  # Add to SUMMARY.md with proper indentation based on depth
+                  depth=$(echo "$rel_path" | tr -cd '/' | wc -c)
+                  indent=""
+                  for j in $(seq 1 $depth); do
+                    indent="  $indent"
+                  done
+                  echo "${indent}- [$title](./$rel_path)" >> "$TEMP_BOOK/src/SUMMARY.md"
+                done
+                
+                # Copy any images and other assets
+                for ext in png jpg jpeg gif svg webp; do
+                  find "$CONTENT_DIR" -name "*.$ext" -type f 2>/dev/null | while read -r asset; do
+                    rel_path="${asset#$CONTENT_DIR/}"
+                    dir_path=$(dirname "$rel_path")
+                    mkdir -p "$TEMP_BOOK/src/$dir_path"
+                    cp "$asset" "$TEMP_BOOK/src/$rel_path"
+                  done
+                done
+                
+                # Build the generated mdBook
+                cd "$TEMP_BOOK"
+                mdbook build || {
+                  echo "::warning::Failed to build generated mdBook for $NAME"
+                  cd - > /dev/null
+                  continue
+                }
                 cd - > /dev/null
-                continue
-              }
-              
-              # Copy built book to output
-              cd - > /dev/null
-              cp -r "$CLONE_DIR/$BOOK_PATH/book" "book/books/$SLUG"
-              echo "Successfully built: $NAME"
-            else
-              echo "::warning::No book.toml found for $NAME at $BOOK_PATH"
-              cd - > /dev/null
-            fi
+                
+                cp -r "$TEMP_BOOK/book" "book/books/$SLUG"
+                echo "Successfully built markdown content as mdBook: $NAME"
+                ;;
+                
+              "html")
+                # Static HTML site - copy directly
+                echo "Copying static HTML content..."
+                mkdir -p "book/books/$SLUG"
+                cp -r "$CONTENT_DIR"/* "book/books/$SLUG/" || {
+                  echo "::warning::Failed to copy HTML content for $NAME"
+                  continue
+                }
+                echo "Successfully copied HTML content: $NAME"
+                ;;
+                
+              *)
+                echo "::warning::Unknown type '$BOOK_TYPE' for $NAME, skipping"
+                ;;
+            esac
           done
 
       - name: Generate catalog.json
