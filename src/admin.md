@@ -42,13 +42,22 @@ Manage the book catalog. Changes are committed directly to the repository via Gi
       <input type="text" id="book-repo" placeholder="https://github.com/owner/repo">
     </div>
     <div class="form-group">
+      <label for="book-type">Content Type</label>
+      <select id="book-type">
+        <option value="mdbook">mdBook (has book.toml)</option>
+        <option value="markdown">Markdown (plain .md files)</option>
+        <option value="html">HTML (static site)</option>
+      </select>
+      <small>Choose based on the repository content format</small>
+    </div>
+    <div class="form-group">
       <label for="book-branch">Branch</label>
       <input type="text" id="book-branch" placeholder="main" value="main">
     </div>
     <div class="form-group">
-      <label for="book-path">Path to book.toml</label>
+      <label for="book-path">Content Path</label>
       <input type="text" id="book-path" placeholder="." value=".">
-      <small>Use "." for repository root</small>
+      <small>Path to content root (for mdBook: path to book.toml)</small>
     </div>
     <button id="add-book-btn" class="btn btn-primary">Add Book</button>
     <div id="add-status" class="status"></div>

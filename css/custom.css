@@ -212,9 +212,38 @@
   margin-left: 0.5rem;
 }
 
+.book-type {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.4rem;
+  margin-left: 0.5rem;
+  border-radius: 3px;
+  background: var(--links);
+  color: #fff;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
 .book-meta {
   font-size: 0.85rem;
   color: var(--inline-code-color);
+}
+
+/* Select dropdown */
+.form-group select {
+  width: 100%;
+  max-width: 400px;
+  padding: 0.6rem 0.8rem;
+  font-size: 1rem;
+  border: 1px solid var(--quote-border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.form-group select:focus {
+  outline: none;
+  border-color: var(--links);
 }
 
 /* Dark mode adjustments for status messages */
