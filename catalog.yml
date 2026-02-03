@@ -7,8 +7,3 @@ books:
     repo: "https://github.com/rust-lang/book"
     branch: "main"
     path: "."
-  - name: "The Art of Debugging"
-    slug: "the-art-of-debugging"
-    repo: "https://github.com/stas00/the-art-of-debugging"
-    branch: "main"
-    path: "."
