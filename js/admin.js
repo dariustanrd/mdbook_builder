@@ -332,7 +332,10 @@
 
   // Simple YAML serializer
   function serializeYaml(catalog) {
-    let output = '# mdBook Catalog\n# Managed by mdBook Builder Admin\n\nbooks:\n';
+    let output = '# mdBook Catalog\n';
+    output += '# Managed by mdBook Builder Admin\n';
+    output += '# Supported types: mdbook, markdown, html\n\n';
+    output += 'books:\n';
 
     for (const book of catalog.books) {
       output += `  - name: "${book.name}"\n`;
