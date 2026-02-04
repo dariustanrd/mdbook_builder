@@ -224,6 +224,82 @@ jobs:
                   fi
                 done
                 
+                # If no chapters file, try to extract TOC from README
+                if [ -z "$CHAPTERS_FILE" ] && [ -n "$ENTRY_FILE" ] && [ -f "$CONTENT_DIR/$ENTRY_FILE" ]; then
+                  echo "No chapters file found, checking README for Table of Contents..."
+                  
+                  # Extract TOC section from README and parse markdown links
+                  # Look for ## Table of Contents, ## TOC, ## Contents, etc.
+                  in_toc=0
+                  toc_links=""
+                  while IFS= read -r line || [ -n "$line" ]; do
+                    # Check for TOC header (case insensitive)
+                    if [[ "$line" =~ ^##[[:space:]]+(Table[[:space:]]+of[[:space:]]+Contents|TOC|Contents)[[:space:]]*$ ]]; then
+                      in_toc=1
+                      continue
+                    fi
+                    
+                    # Stop at next ## header
+                    if [ "$in_toc" = "1" ] && [[ "$line" =~ ^##[[:space:]] ]]; then
+                      break
+                    fi
+                    
+                    # Extract markdown links from TOC section
+                    if [ "$in_toc" = "1" ]; then
+                      # Extract all markdown links [text](url) from the line
+                      # Skip external links (http:// or https://)
+                      while [[ "$line" =~ \[([^\]]+)\]\(([^\)]+)\) ]]; do
+                        link_path="${BASH_REMATCH[2]}"
+                        # Remove the matched part to continue finding more links
+                        line="${line#*"${BASH_REMATCH[0]}"}"
+                        
+                        # Skip external links
+                        [[ "$link_path" =~ ^https?:// ]] && continue
+                        
+                        # Skip anchor-only links
+                        [[ "$link_path" =~ ^# ]] && continue
+                        
+                        # Clean up the path (remove ./ prefix, trailing slashes)
+                        link_path="${link_path#./}"
+                        link_path="${link_path%/}"
+                        
+                        # Skip empty paths
+                        [ -z "$link_path" ] && continue
+                        
+                        # Resolve the path to an actual file
+                        resolved_path=""
+                        if [ -f "$CONTENT_DIR/$link_path" ]; then
+                          resolved_path="$link_path"
+                        elif [ -f "$CONTENT_DIR/${link_path}.md" ]; then
+                          resolved_path="${link_path}.md"
+                        elif [ -d "$CONTENT_DIR/$link_path" ]; then
+                          # It's a directory - look for README
+                          for idx in "README.md" "readme.md" "index.md"; do
+                            if [ -f "$CONTENT_DIR/$link_path/$idx" ]; then
+                              resolved_path="$link_path/$idx"
+                              break
+                            fi
+                          done
+                        fi
+                        
+                        # Add to list if resolved and not already present
+                        if [ -n "$resolved_path" ]; then
+                          if [[ ! "$toc_links" =~ (^|$'\n')"$resolved_path"($'\n'|$) ]]; then
+                            toc_links="${toc_links}${resolved_path}"$'\n'
+                          fi
+                        fi
+                      done
+                    fi
+                  done < "$CONTENT_DIR/$ENTRY_FILE"
+                  
+                  # If we found TOC links, create a temporary chapters file
+                  if [ -n "$toc_links" ]; then
+                    CHAPTERS_FILE="$TEMP_BOOK/toc_from_readme.txt"
+                    echo "$toc_links" > "$CHAPTERS_FILE"
+                    echo "Extracted TOC from README with $(echo "$toc_links" | grep -c .) entries"
+                  fi
+                fi
+                
                 if [ -n "$CHAPTERS_FILE" ]; then
                   # === USE CHAPTERS FILE FOR ORDERING ===
                   # This preserves the author's intended reading order
